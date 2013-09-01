@@ -36,9 +36,11 @@
 -spec setup_universe([planet()], [shield()], [alliance()]) -> ok.
 %% @end
 setup_universe(Planets, Shields, Alliances) ->
+    io:format("setup started~n"),
     [planet_server:start(PlanetName)||PlanetName <- Planets],
     [planet_server:enable_shield(PlanetName)||PlanetName <- Shields],
     [planet_server:ally(Alliance)|| Alliance <- Alliances],
+    io:format("setup done~n"),
     ok.
 
 %% @doc Clean up a universe simulation.
@@ -49,7 +51,9 @@ setup_universe(Planets, Shields, Alliances) ->
 %% @end
 -spec teardown_universe([planet()]) -> ok.
 teardown_universe(Planets) ->
+    io:format("teardown started~n"),
     [planet_server:stop(PlanetName) || PlanetName <- Planets],
+    io:format("teardown done~n"),
     ok.
     
 
@@ -61,7 +65,7 @@ teardown_universe(Planets) ->
 %% @end
 simulate_attack(Planets, Actions) ->
     [planet_server:attack(Action) || Action <- Actions],
-    lists:all(fun(Planet) ->
+    lists:filter(fun(Planet) ->
         planet_server:exists(Planet)
     end, Planets).
 

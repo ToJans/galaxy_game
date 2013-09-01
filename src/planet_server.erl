@@ -10,38 +10,41 @@
 %% API
 %%===============================
 
-%% @doc Start a new planet instance
+%% @doc Start a new planet instance and returns when it is running
 -spec start(galaxy_game:planet()) -> pid().
 %% @end
 start(PlanetName) ->
-    gen_server:start({local,PlanetName}, ?MODULE, PlanetName, []).
+    gen_server:start_link({local,PlanetName}, ?MODULE, PlanetName, []),
+    PPid = whereis(PlanetName),
+    unlink(PPid).
 
 %% @doc Destroy a planet
 -spec stop(galaxy_game:planet()) -> pid().
 %% @end
 stop(PlanetName) ->
-    PPid = whereis(PlanetName),
-    exit(PPid,kill).
+    maybe_do(exists(PlanetName), fun ()-> 
+        PPid = whereis(PlanetName),
+        exit(PPid, normal) 
+    end).
+
+maybe_do(false, _Fun) ->
+    ok;
+maybe_do(true, Fun) ->
+    Fun.
 
 %% @doc Checks whether a planet exists
 -spec exists(galaxy_game:planet()) -> boolean().
 %% @end
 exists(PlanetName) ->
     PPid = whereis(PlanetName),
-        PPid /= undefined andalso erlang:is_process_alive(PPid).
+    PPid /= undefined andalso erlang:is_process_alive(PPid).
 
 
 %% @doc Enable the shield on a planet
 -spec enable_shield(galaxy_game:planet()) -> ok.
 %% @end
 enable_shield(PlanetName) ->
-    enable_shield(PlanetName, exists(PlanetName)).
-
-enable_shield(PlanetName, _Exists=true) ->
-    gen_server:call(PlanetName, enable_shield);
-enable_shield(_PlanetName, _Exists=false) ->
-    ok.
-
+    gen_server:call(PlanetName,enable_shield).
 
 %% @doc  Build an alliance with planets.
 %% If one planet dies, the allied planet does as well, unless it 
@@ -57,9 +60,10 @@ ally({PlanetA, PlanetB}) ->
 %% @end
 attack({Weapon,PlanetName}) ->
     PPid = whereis(PlanetName),
-    exit(PPid, shot),
+    exit(PPid, Weapon),
     io:format("Shot planet ~p with a ~p~n", [PlanetName, Weapon]),
     ok.
+
 
 %%===============================
 %% Behaviour
@@ -68,7 +72,7 @@ init(PlanetName) ->
     io:format("Planet ~p was added to the universe~n", [PlanetName]),
     {ok, PlanetName}.
 
-handle_call(enable_shield, _From PlanetName) ->
+handle_call(enable_shield, _From, PlanetName) ->
     process_flag(trap_exit, true),
     io:format("The shield was enabled for planet ~p~n", [PlanetName]),
     {reply, ok, PlanetName};
@@ -78,13 +82,16 @@ handle_call({ally, OtherPlanet}, _From, PlanetName) ->
     io:format("Planet ~p allied with ~p ~n", [PlanetName, OtherPlanet]),
     {reply, ok, PlanetName}.
 
-handle_info({'EXIT', _Pid, shot}, PlanetName) ->
-    io:format("Planet ~p was shot; luckily the shield was enabled!~n", [PlanetName]),
-    {noreply, PlanetName};
-handle_info({'EXIT', _Pid, kill}, PlanetName) ->
-    io:format("Planet ~p  killed~n", [PlanetName]),
-    {stop, PlanetName}. 
+handle_info({'EXIT', _Pid, nuclear}, PlanetName) ->
+    io:format("The shield of planet ~p was not strong enough to survive a nuclear attack!~n", [PlanetName]),
+    {stop, normal, PlanetName};
+handle_info({'EXIT', _Pid, normal}, PlanetName) ->
+    io:format("Planet ~p  exited~n", [PlanetName]),
+    {stop, killed, PlanetName};
+handle_info({'EXIT', _Pid, Weapon}, PlanetName) ->
+    io:format("The shield of planet ~p blocked the ~p attack!~n", [PlanetName, Weapon]),
+    {noreply, PlanetName}.
 
-terminate(shutdown, PlanetName) ->
-    io:format("Planet ~p was destroyed~n", [PlanetName]),
+terminate(shutdown, [Reason,PlanetName]) ->
+    io:format("Planet ~p was destroyed, reason: ~p~n", [PlanetName, Reason]),
     ok.
