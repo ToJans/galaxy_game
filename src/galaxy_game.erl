@@ -49,7 +49,7 @@ setup_universe(Planets, Shields, Alliances) ->
 %% @end
 -spec teardown_universe([planet()]) -> ok.
 teardown_universe(Planets) ->
-    [planet_server:stop(PlanetName)||PlanetName <- Planets],
+    [planet_server:stop(PlanetName) || PlanetName <- Planets],
     ok.
     
 
@@ -60,8 +60,8 @@ teardown_universe(Planets) ->
 -spec simulate_attack([planet()], [attack()]) -> Survivors::[planet()].
 %% @end
 simulate_attack(Planets, Actions) ->
-    [planet_server:attack(Action)||Action <- Actions],
+    [planet_server:attack(Action) || Action <- Actions],
     lists:all(fun(Planet) ->
-    	planet_server:exists(Planet)
-    end , Planets).
+        planet_server:exists(Planet)
+    end, Planets).
 
