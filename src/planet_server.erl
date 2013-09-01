@@ -30,7 +30,7 @@ stop(PlanetName) ->
 maybe_do(false, _Fun) ->
     ok;
 maybe_do(true, Fun) ->
-    Fun.
+    Fun().
 
 %% @doc Checks whether a planet exists
 -spec exists(galaxy_game:planet()) -> boolean().
