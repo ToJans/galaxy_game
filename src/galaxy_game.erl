@@ -36,17 +36,22 @@
 -spec setup_universe([planet()], [shield()], [alliance()]) -> ok.
 %% @end
 setup_universe(Planets, Shields, Alliances) ->
-    unimplemented.
+    [planet_server:start(PlanetName)||PlanetName <- Planets],
+    [planet_server:enable_shield(PlanetName)||PlanetName <- Shields],
+    [planet_server:ally(Alliance)|| Alliance <- Alliances],
+    ok.
 
 %% @doc Clean up a universe simulation.
 %% This function will only be called after calling setup_universe/3 with the
 %% same set of planets.
 %% Once this function returns, all the processes spawned by the simulation
 %% should be gone.
--spec teardown_universe([planet()]) -> ok.
 %% @end
+-spec teardown_universe([planet()]) -> ok.
 teardown_universe(Planets) ->
-    unimplemented.
+    [planet_server:stop(PlanetName)||PlanetName <- Planets],
+    ok.
+    
 
 %% @doc Simulate an attack.
 %% This function will only be called after setting up a universe with the same
@@ -55,5 +60,8 @@ teardown_universe(Planets) ->
 -spec simulate_attack([planet()], [attack()]) -> Survivors::[planet()].
 %% @end
 simulate_attack(Planets, Actions) ->
-    unimplemented.
+    [planet_server:attack(Action)||Action <- Actions],
+    lists:all(fun(Planet) ->
+    	planet_server:exists(Planet)
+    end , Planets).
 
