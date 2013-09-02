@@ -27,6 +27,9 @@
 -type attack()::{laser | nuclear, planet()}.
 
 -export([setup_universe/3, teardown_universe/1, simulate_attack/2]).
+-export([create_universe/1, destroy_universe/0]).
+-export([enable_shield/1, ally/1, attack/1, exists/1]).
+
 
 %% @doc Set up a universe described by the input.
 %% The imput is asumed to be minimal and non redundant (i.e. if there is an
@@ -36,11 +39,9 @@
 -spec setup_universe([planet()], [shield()], [alliance()]) -> ok.
 %% @end
 setup_universe(Planets, Shields, Alliances) ->
-    io:format("setup started~n"),
-    [planet_server:start(PlanetName)||PlanetName <- Planets],
-    [planet_server:enable_shield(PlanetName)||PlanetName <- Shields],
-    [planet_server:ally(Alliance)|| Alliance <- Alliances],
-    io:format("setup done~n"),
+    create_universe(Planets),
+    [enable_shield(PlanetName)||PlanetName <- Shields],
+    [ally(Alliance)|| Alliance <- Alliances],
     ok.
 
 %% @doc Clean up a universe simulation.
@@ -50,12 +51,10 @@ setup_universe(Planets, Shields, Alliances) ->
 %% should be gone.
 %% @end
 -spec teardown_universe([planet()]) -> ok.
-teardown_universe(Planets) ->
-    io:format("teardown started~n"),
-    [planet_server:stop(PlanetName) || PlanetName <- Planets],
-    io:format("teardown done~n"),
+teardown_universe(_Planets) ->
+    destroy_universe(),
+    timer:sleep(100),
     ok.
-    
 
 %% @doc Simulate an attack.
 %% This function will only be called after setting up a universe with the same
@@ -64,8 +63,50 @@ teardown_universe(Planets) ->
 -spec simulate_attack([planet()], [attack()]) -> Survivors::[planet()].
 %% @end
 simulate_attack(Planets, Actions) ->
-    [planet_server:attack(Action) || Action <- Actions],
+    [attack(Action) || Action <- Actions],
     lists:filter(fun(Planet) ->
-        planet_server:exists(Planet)
+        exists(Planet)
     end, Planets).
 
+%% @doc Destroys the universe and the planets in it.
+-spec destroy_universe() -> any().
+%% @end
+destroy_universe() ->
+    planet_sup:stop().
+
+%% @doc Creates the universe with some planets in it.
+-spec create_universe([planet()]) -> any().
+%% @end
+create_universe(Planets) ->
+     planet_sup:start_link(Planets).
+
+%% @doc Checks whether a planet exists in the universe.
+-spec exists(planet()) -> boolean().
+%% @end
+exists(PlanetName) ->
+    PPid = whereis(PlanetName),
+    PPid /= undefined andalso erlang:is_process_alive(PPid).
+
+%% @doc Enable the shield on a planet.
+-spec enable_shield(planet()) -> ok.
+%% @end
+enable_shield(PlanetName) ->
+    gen_server:call(PlanetName, enable_shield).
+
+%% @doc Create an alliance between 2 planets.
+%% If one planet dies, the allied planet does as well, unless it 
+%% has enabled it's shield.
+-spec ally(alliance()) -> ok.
+%% @end
+ally({PlanetA, PlanetB}) ->
+    gen_server:call(PlanetA, {ally, PlanetB}).
+
+%% @doc Shoot a planet.
+%% It survives if the shield was enabled; otherwise it is destructed.
+-spec attack(attack()) -> ok.
+%% @end
+attack({Weapon, PlanetName}) ->
+    PPid = whereis(PlanetName),
+    exit(PPid, Weapon),
+    io:format("Shot planet ~p with a ~p~n", [PlanetName, Weapon]),
+    ok.
